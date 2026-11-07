@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Garden Monitoring</title>
+
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+
+body{
+
+    font-family: Arial;
+    text-align:center;
+    background:#f2f2f2;
+
+}
+
+h1{
+
+    color:green;
+
+}
+
+button{
+
+    width:120px;
+    height:45px;
+    margin:5px;
+    font-size:16px;
+
+}
+
+canvas{
+
+    width:700px !important;
+    height:300px !important;
+
+}
+
+.card{
+
+    width:250px;
+    margin:auto;
+    padding:10px;
+    background:white;
+    border-radius:10px;
+    margin-bottom:15px;
+
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h1>🌱 GARDEN MONITORING 🌱</h1>
+
+<div class="card">
+
+<h2>Nhiệt độ</h2>
+
+<h3 id="temp">-- °C</h3>
+
+<h2>Độ ẩm</h2>
+
+<h3 id="humi">-- %</h3>
+
+</div>
+
+<div class="card">
+
+<h2>Trạng thái Pump</h2>
+
+<h3 id="pumpState">OFF</h3>
+
+<h2>Trạng thái Fan</h2>
+
+<h3 id="fanState">OFF</h3>
+
+</div>
+
+<div class="card">
+
+<h2>Cảnh báo</h2>
+
+<h3 id="warning">
+
+Không có cảnh báo
+
+</h3>
+
+<h2>Cập nhật lúc</h2>
+
+<h3 id="time">
+
+--:--:--
+
+</h3>
+
+</div>
+
+<button onclick="pumpOn()">
+
+Pump ON
+
+</button>
+
+<button onclick="pumpOff()">
+
+Pump OFF
+
+</button>
+
+<br><br>
+
+<button onclick="fanOn()">
+
+Fan ON
+
+</button>
+
+<button onclick="fanOff()">
+
+Fan OFF
+
+</button>
+
+<br><br>
+
+<canvas id="tempChart"></canvas>
+
+<br><br>
+
+<canvas id="humiChart"></canvas>
+
+<script>
+
+//================ MQTT =================
+
+const client = mqtt.connect("ws://broker.hivemq.com:8000/mqtt");
+
+//================ CHART =================
+
+let labels=[];
+
+let tempData=[];
+
+let humiData=[];
+
+const tempChart=new Chart(
+
+document.getElementById("tempChart"),
+
+{
+
+type:"line",
+
+data:{
+
+labels:labels,
+
+datasets:[{
+
+label:"Temperature",
+
+data:tempData,
+
+borderWidth:2
+
+}]
+
+}
+
+});
+
+const humiChart=new Chart(
+
+document.getElementById("humiChart"),
+
+{
+
+type:"line",
+
+data:{
+
+labels:labels,
+
+datasets:[{
+
+label:"Humidity",
+
+data:humiData,
+
+borderWidth:2
+
+}]
+
+}
+
+});
+//================ MQTT =================
+
+client.on("connect",function(){
+
+    console.log("MQTT Connected");
+
+    client.subscribe("garden/temp");
+    client.subscribe("garden/humi");
+
+    client.subscribe("garden/pump/state");
+    client.subscribe("garden/fan/state");
+
+});
+
+//================ MQTT MESSAGE =================
+
+client.on("message",function(topic,message){
+
+    let value = message.toString();
+
+    let now = new Date().toLocaleTimeString();
+
+    //================ Temperature =================
+
+    if(topic=="garden/temp"){
+
+        document.getElementById("temp").innerHTML=value+" °C";
+
+        tempData.push(Number(value));
+
+    }
+
+    //================ Humidity =================
+
+    if(topic=="garden/humi"){
+
+        document.getElementById("humi").innerHTML=value+" %";
+
+        humiData.push(Number(value));
+
+        if(Number(value)<40){
+
+            document.getElementById("warning").innerHTML="⚠ Độ ẩm thấp";
+
+        }
+        else{
+
+            document.getElementById("warning").innerHTML="Không có cảnh báo";
+
+        }
+
+    }
+
+    //================ Pump =================
+
+    if(topic=="garden/pump/state"){
+
+        document.getElementById("pumpState").innerHTML=value;
+
+    }
+
+    //================ Fan =================
+
+    if(topic=="garden/fan/state"){
+
+        document.getElementById("fanState").innerHTML=value;
+
+    }
+
+    labels.push(now);
+
+    document.getElementById("time").innerHTML=now;
+
+    if(labels.length>20){
+
+        labels.shift();
+        tempData.shift();
+        humiData.shift();
+
+    }
+
+    tempChart.update();
+
+    humiChart.update();
+
+});
+//================ BUTTON =================
+
+function pumpOn(){
+
+    client.publish("garden/pump","ON");
+
+}
+
+function pumpOff(){
+
+    client.publish("garden/pump","OFF");
+
+}
+
+function fanOn(){
+
+    client.publish("garden/fan","ON");
+
+}
+
+function fanOff(){
+
+    client.publish("garden/fan","OFF");
+
+}
+
+</script>
+
+</body>
+
+</html>
